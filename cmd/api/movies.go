@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/thecodephilic-guy/greenlight/internal/data"
 )
 
 // "POST /v1/movies"
@@ -15,9 +18,26 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 	id, err := app.readIdParams(r)
 
 	if err != nil {
-		http.NotFound(w, r)
+		app.notFoundResponse(w, r)
 		return
 	}
 
-	fmt.Fprintf(w, "Show the details of movie %d\n", id)
+	// Create a new instance of the Movie struct, containing the ID we extracted from
+	// the URL and some dummy data. Also notice that we deliberately haven't set a
+	// value for the Year field.”
+
+	movie := data.Movie{
+		ID:        id,
+		CreatedAt: time.Now(),
+		Title:     "Casablanca",
+		Runtime:   102,
+		Genres:    []string{"drama", "romance", "war"},
+		Version:   1,
+	}
+
+	//Encoding the struct into JSON using helper funtion and sending reponse
+	err = app.writeJSON(w, http.StatusOK, envelop{"movie": movie}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }
