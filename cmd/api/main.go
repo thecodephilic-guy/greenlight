@@ -14,6 +14,7 @@ import (
 	// package. Note that we alias this import to the blank identifier, to stop the Go”
 	// compiler complaining that the package isn't being used.
 	_ "github.com/lib/pq"
+	"github.com/thecodephilic-guy/greenlight/internal/data"
 
 	godotenv "github.com/joho/godotenv"
 )
@@ -42,9 +43,11 @@ type config struct {
 // Define an application struct to hold the dependencies for our HTTP handlers, helpers,
 // and middleware. At the moment this only contains a copy of the config struct and a
 // logger, but it will grow to include a lot more as our build progresses.
+// Add a models field to hold our new Models struct.
 type application struct {
 	config config
 	logger *log.Logger
+	model  data.Models
 }
 
 func main() {
@@ -92,6 +95,7 @@ func main() {
 	app := &application{
 		config: cfg,
 		logger: logger,
+		model:  data.NewModels(db),
 	}
 
 	// Declare a HTTP server with some sensible timeout settings, which listens on the
