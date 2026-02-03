@@ -53,9 +53,6 @@ type application struct {
 func main() {
 	//Laod env varialbles:
 	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 
 	// Declare an instance of the config struct.
 	var cfg config
@@ -73,9 +70,22 @@ func main() {
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
 	flag.Parse()
 
+	if cfg.env == "development" {
+
+	}
 	// Initialize a new logger which writes messages to the standard out stream,
 	// prefixed with the current date and time.
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
+
+	if err != nil {
+		if cfg.env == "production" {
+			// In production, it's expected that .env might not exist
+			logger.Printf("No .env file found, relying on system environment variables")
+		} else {
+			// In development (or default), a missing .env is a critical error
+			logger.Fatal("Error loading .env file")
+		}
+	}
 
 	// Call the openDB() helper function (see below) to create the connection pool,
 	// passing in the config struct. If this returns an error, we log it and exit the
