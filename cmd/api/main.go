@@ -64,7 +64,7 @@ func main() {
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	// Read the DSN value from the db-dsn command-line flag into the config struct. We
 	// default to using our development DSN if no flag is provided.
-	// flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("DATABASE_URL"), "PostgreSQL DSN")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("DATABASE_URL"), "PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max_idle-conns", 25, "PostgreSQL max idle connections")
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
@@ -82,12 +82,6 @@ func main() {
 			// In development (or default), a missing .env is a critical error
 			logger.Fatal("Error loading .env file")
 		}
-	}
-
-	//setting the databse string:
-	cfg.db.dsn = os.Getenv("DATABASE_URL")
-	if cfg.db.dsn == "" {
-		logger.Fatal("DATABASE_URL environment variable is not set")
 	}
 
 	// Call the openDB() helper function (see below) to create the connection pool,
