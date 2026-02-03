@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/thecodephilic-guy/greenlight/internal/data"
 	"github.com/thecodephilic-guy/greenlight/internal/validator"
@@ -93,7 +94,7 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// "PUT /v1/movies/:id"
+// "PATCH /v1/movies/:id"
 func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := app.readIdParams(r)
 	if err != nil {
@@ -113,11 +114,24 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// If the request contains a X-Expected-Version header, verify that the movie
+	// version in the database matches the expected version specified in the header.
+	if r.Header.Get("X-Expected-Version") != "" {
+		if strconv.FormatInt(int64(movie.Version), 32) != r.Header.Get("X-Expected-Version") {
+			app.editConflictResponse(w, r)
+			return
+		}
+	}
+
 	//input struct to hold the expected data:
+	//using pointers so that the zero-value (dafault - if not provided) is 'nil'
+	// Why we added pointer?
+	// This is a part of advanced query to let user update any particular field otherwise
+	// our validators would have thrown error that all particular fields are required.
 	var input struct {
-		Title   string   `json:"title"`
-		Year    int32    `json:"year"`
-		Runtime int32    `json:"runtime"`
+		Title   *string  `json:"title"`
+		Year    *int32   `json:"year"`
+		Runtime *int32   `json:"runtime"`
 		Genres  []string `json:"genres"`
 	}
 
@@ -128,10 +142,28 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	//copy values to movie record:
-	movie.Title = input.Title
-	movie.Year = input.Year
-	movie.Runtime = input.Runtime
-	movie.Genres = input.Genres
+
+	// If the input.Title value is nil then we know that no corresponding "title" key/
+	// value pair was provided in the JSON request body. So we move on and leave the
+	// movie record unchanged. Otherwise, we update the movie record with the new title
+	// value. Importantly, because input.Title is a now a pointer to a string, we need
+	// to dereference the pointer using the * operator to get the underlying value
+	// before assigning it to our movie record.
+	if input.Title != nil {
+		movie.Title = *input.Title
+	}
+
+	if input.Year != nil {
+		movie.Year = *input.Year
+	}
+
+	if input.Runtime != nil {
+		movie.Runtime = *input.Runtime
+	}
+
+	if input.Genres != nil {
+		movie.Genres = input.Genres
+	}
 
 	// Validate the updated movie record, sending the client 1 422 Unprocessable Entity
 	// response if any checks fail.
@@ -145,7 +177,12 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 	// Now update the DB:
 	err = app.model.Movies.Update(movie)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
@@ -179,6 +216,53 @@ func (app *application) deleteMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	//sending the response to the client:
 	err = app.writeJSON(w, http.StatusOK, envelop{"message": "movie successfully deleted"}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+// "GET /v1/movies"
+func (app *application) listMoviesHandler(w http.ResponseWriter, r *http.Request) {
+	//To keep things consistent with our other handlers, we'll define an input struct
+	//to hold the expected values from the request query string.
+	var input struct {
+		Title        string
+		Genres       []string
+		data.Filters //splitted then just to make the code resuable to other handlers as well
+	}
+
+	//Initialize a new Validator instance.
+	v := validator.New()
+
+	//extracting the query string from the request:
+	qs := r.URL.Query() //signature -> func (u *url.URL) Query() url.Values
+
+	//Use out helpers to extract the title and genres query string values, falling back
+	//to defaults of an empty string and an empty slice respectively if they are not
+	//provided by the client
+	input.Title = app.readString(qs, "title", "")
+	input.Genres = app.readCSV(qs, "genres", []string{})
+	input.Filters.Page = app.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
+	input.Filters.Sort = app.readString(qs, "sort", "id") //default value we are using is Id(ascending order)
+
+	//adding the allowed values for sort parameter:
+	input.Filters.SortSafeList = []string{"id", "title", "year", "runtime", "-id", "-title", "-year", "-runtime"}
+
+	// Check the Validator instance for any errors and use the failedValidationResponse()
+	// helper to send the client a response if necessary.
+	if data.ValidateFilters(v, input.Filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	movies, metadata, err := app.model.Movies.GetAll(input.Title, input.Genres, input.Filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelop{"metadata": metadata, "movies": movies}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
