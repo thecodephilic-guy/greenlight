@@ -6,7 +6,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func (app *application) routes() *httprouter.Router {
+func (app *application) routes() http.Handler {
 	// Initialize a new httprouter instance.
 	router := httprouter.New()
 
@@ -14,7 +14,6 @@ func (app *application) routes() *httprouter.Router {
 	// http.HandlerFunc() adapter, and then set it as the custom error handler for 404
 	// Not Found responses.
 	router.NotFound = http.HandlerFunc(app.notFoundResponse)
-	//similarly:
 	router.MethodNotAllowed = http.HandlerFunc(app.methodNotAllowedResponse)
 
 	// Register the relevant methods, URL patterns and handler functions for our
@@ -28,5 +27,5 @@ func (app *application) routes() *httprouter.Router {
 	router.HandlerFunc(http.MethodPatch, "/v1/movies/:id", app.updateMovieHandler)
 	router.HandlerFunc(http.MethodDelete, "/v1/movies/:id", app.deleteMovieHandler)
 
-	return router
+	return app.recoverPanic(router)
 }

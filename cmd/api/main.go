@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -15,6 +15,7 @@ import (
 	// compiler complaining that the package isn't being used.
 	_ "github.com/lib/pq"
 	"github.com/thecodephilic-guy/greenlight/internal/data"
+	"github.com/thecodephilic-guy/greenlight/internal/jsonlog"
 
 	godotenv "github.com/joho/godotenv"
 )
@@ -46,7 +47,7 @@ type config struct {
 // Add a models field to hold our new Models struct.
 type application struct {
 	config config
-	logger *log.Logger
+	logger *jsonlog.Logger
 	model  data.Models
 }
 
@@ -70,17 +71,17 @@ func main() {
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
 	flag.Parse()
 
-	// Initialize a new logger which writes messages to the standard out stream,
-	// prefixed with the current date and time.
-	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
+	// Initialize a new jsonlog.Logger which writes messages *at or above* the INFO
+	// severity level to the strandard out stream.
+	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
 	if err != nil {
 		if cfg.env == "production" {
 			// In production, it's expected that .env might not exist
-			logger.Printf("No .env file found, relying on system environment variables")
+			logger.PrintInfo("No .env file found, relying on system environment variables", nil)
 		} else {
 			// In development (or default), a missing .env is a critical error
-			logger.Fatal("Error loading .env file")
+			logger.PrintFatal(errors.New("Error loading .env file"), nil)
 		}
 	}
 
@@ -89,13 +90,13 @@ func main() {
 	// application immediately.
 	db, err := openDB(cfg)
 	if err != nil {
-		logger.Fatal(err)
+		logger.PrintFatal(err, nil)
 	}
 
 	// Defer a call to db.Close() so that the connection pool is closed before the
 	// main() function exits.
 	defer db.Close()
-	logger.Printf("databsae connection pool established ✅")
+	logger.PrintInfo("databsae connection pool established ✅", nil)
 
 	// Declare an instance of the application struct, containing the config struct and
 	// the logger.
@@ -117,9 +118,12 @@ func main() {
 	}
 
 	// Start the HTTP server.
-	logger.Printf("starting %s server on http://localhost%s", cfg.env, srv.Addr)
+	logger.PrintInfo(fmt.Sprintf("starting the server on http://localhost%s", srv.Addr), map[string]string{
+		"add": srv.Addr,
+		"env": cfg.env,
+	})
 	err = srv.ListenAndServe()
-	logger.Fatal(err)
+	logger.PrintFatal(err, nil)
 }
 
 // The openDB() function returns a sql.DB connection pool.
