@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"flag"
-	"fmt"
-	"net/http"
 	"os"
 	"time"
 
@@ -114,24 +112,10 @@ func main() {
 		model:  data.NewModels(db),
 	}
 
-	// Declare a HTTP server with some sensible timeout settings, which listens on the
-	// port provided in the config struct and uses the servemux we created above as the
-	// handler.
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.port),
-		Handler:      app.routes(),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+	err = app.server()
+	if err != nil {
+		logger.PrintFatal(err, nil)
 	}
-
-	// Start the HTTP server.
-	logger.PrintInfo(fmt.Sprintf("starting the server on http://localhost%s", srv.Addr), map[string]string{
-		"add": srv.Addr,
-		"env": cfg.env,
-	})
-	err = srv.ListenAndServe()
-	logger.PrintFatal(err, nil)
 }
 
 // The openDB() function returns a sql.DB connection pool.
