@@ -48,7 +48,7 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 	//Now calling the Insert() method on our movie model, passing in a pointer to the
 	//validated movie struct. This will create a record in the database and update the
 	//movie struct with the system-generated information.
-	err = app.model.Movies.Insert(movie)
+	err = app.models.Movies.Insert(movie)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -76,7 +76,7 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	movie, err := app.model.Movies.Get(id)
+	movie, err := app.models.Movies.Get(id)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -103,7 +103,7 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	//Fetching the record from DB to make sure it exists:
-	movie, err := app.model.Movies.Get(id)
+	movie, err := app.models.Movies.Get(id)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -175,7 +175,7 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Now update the DB:
-	err = app.model.Movies.Update(movie)
+	err = app.models.Movies.Update(movie)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrEditConflict):
@@ -202,7 +202,7 @@ func (app *application) deleteMovieHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	//Deleting the movie data from the databse and sending 404 not found if not present:
-	err = app.model.Movies.Delete(id)
+	err = app.models.Movies.Delete(id)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -256,7 +256,7 @@ func (app *application) listMoviesHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	movies, metadata, err := app.model.Movies.GetAll(input.Title, input.Genres, input.Filters)
+	movies, metadata, err := app.models.Movies.GetAll(input.Title, input.Genres, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

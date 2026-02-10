@@ -51,7 +51,7 @@ type config struct {
 type application struct {
 	config config
 	logger *jsonlog.Logger
-	model  data.Models
+	models data.Models
 }
 
 func main() {
@@ -109,7 +109,7 @@ func main() {
 	app := &application{
 		config: cfg,
 		logger: logger,
-		model:  data.NewModels(db),
+		models: data.NewModels(db),
 	}
 
 	err = app.server()
