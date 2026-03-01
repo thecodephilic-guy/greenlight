@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"os"
+	"sync"
 	"time"
 
 	// Import the pq driver so that it can register itself with the database/sql
@@ -56,11 +57,13 @@ type config struct {
 // and middleware. At the moment this only contains a copy of the config struct and a
 // logger, but it will grow to include a lot more as our build progresses.
 // Add a models field to hold our new Models struct.
+// sync.WaitGroup helps to keep the background task in sync with graceful shutdown of server
 type application struct {
 	config config
 	logger *jsonlog.Logger
 	models data.Models
 	mailer mailer.Mailer
+	wg     sync.WaitGroup
 }
 
 func main() {

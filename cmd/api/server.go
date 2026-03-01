@@ -57,10 +57,24 @@ func (app *application) server() error {
 		// error (which may happen because of a problem closing the listeners, or
 		// because the shutdown didn't complete before the 5-second context deadline is
 		// hit). We relay this return value to the shutdownError channel.
-		shutdownError <- srv.Shutdown(ctx)
+		//PS: making sure all background tasks have done executing:
+		err := srv.Shutdown(ctx)
+		if err != nil {
+			shutdownError <- err
+		}
 
-		// Exit the application with a 0 (success) status code.
-		os.Exit(0)
+		// Log a message to say that we're waiting for any background goroutines to
+		// complete their tasks.
+		app.logger.PrintInfo("completing background tasks", map[string]string{
+			"add": srv.Addr,
+		})
+
+		// Call Wait() to block until our WaitGroup counter is zero --- essentially
+		// blocking until the background goroutines have finished. Then we return nil on
+		// the shutdownError channel, to indicate that the shutdown completed without
+		// any issues.
+		app.wg.Wait()
+		shutdownError <- nil
 	}()
 
 	app.logger.PrintInfo(fmt.Sprintf("starting the server on http://localhost%s", srv.Addr), map[string]string{
