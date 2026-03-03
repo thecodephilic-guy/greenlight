@@ -116,7 +116,7 @@ type UserModel struct {
 // that we did when creating a movie.
 func (m UserModel) Insert(user *User) error {
 	query := `
-		INSERT INTO User (name, email, password_hash, activated)
+		INSERT INTO users (name, email, password_hash, activated)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at, version
 	`

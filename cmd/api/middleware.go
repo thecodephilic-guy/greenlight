@@ -184,3 +184,62 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+func (app *application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		if user.IsAnonymous() {
+			app.authenticationRequiredResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc { //notice it accepts and return HandlerFunc not Handler this is very imp to be able to use in routes directly
+	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Use the contextGetUser() helper that we made earlier in context.go
+		user := app.contextGetUser(r)
+
+		// If user is there but not activated his account:
+		if !user.Activated {
+			app.inactiveAccountResponse(w, r)
+			return
+		}
+
+		// If all checks are passed call the next handler in the chain:
+		next.ServeHTTP(w, r)
+	})
+
+	// Wrap fn with the requiredAuthenticatedUser() middleware before returning it this way it checks if user is both auth and activated
+	return app.requireAuthenticatedUser(fn)
+}
+
+func (app *application) requirePermission(code string, next http.HandlerFunc) http.HandlerFunc {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		// Retrive the user from the req context
+		user := app.contextGetUser(r)
+
+		//Get the clise of permissions for the user.
+		permissions, err := app.models.Permissions.GetAllForUser(user.ID)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		// Check if the slice includes the required permission. If it does not
+		// then return a 403 Forbidden response.
+		if !permissions.Include(code) {
+			app.notPermittedResponse(w, r)
+			return
+		}
+
+		// Otherwise they have the req permission so call next
+		next.ServeHTTP(w, r)
+	}
+
+	// Wrap this with the requiredActivatedUser() middleware before returing it.
+	return app.requireActivatedUser(fn)
+}
