@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -242,4 +243,39 @@ func (app *application) requirePermission(code string, next http.HandlerFunc) ht
 
 	// Wrap this with the requiredActivatedUser() middleware before returing it.
 	return app.requireActivatedUser(fn)
+}
+
+func (app *application) enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Add the "Vary: Origin" header
+		w.Header().Set("Vary", "Origin")
+		w.Header().Set("Vary", "Access-Control-Request-Method")
+
+		// Get the value of the request's Origin header.
+		origin := r.Header.Get("Origin")
+		// only run this if there's an Origin Request header present AND at lest
+		// one trusted origin is configured.
+		if origin != "" && len(app.config.cors.trustedOrigins) != 0 {
+			if slices.Contains(app.config.cors.trustedOrigins, origin) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+
+				//Check if the request has the HTTP method OPTIONS and contains the
+				// "Access-Control-Request-Method" header. If it does, then we
+				// treat it as preflight req.
+				if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+					// Set the necessary preflight response headers
+					w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, PUT, PATCH, DELETE")
+					w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+
+					//Write the headers along with a 200 OK status and return
+					// from the middleware with no furhter action.
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+			}
+		}
+
+		// Call the next hander in the chain.
+		next.ServeHTTP(w, r)
+	})
 }
