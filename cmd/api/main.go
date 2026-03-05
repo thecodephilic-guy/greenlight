@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"expvar"
 	"flag"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -86,8 +88,8 @@ func main() {
 	// default to using our development DSN if no flag is provided.
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("DATABASE_URL"), "PostgreSQL DSN")
 
-	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
-	flag.IntVar(&cfg.db.maxIdleConns, "db-max_idle-conns", 25, "PostgreSQL max idle connections")
+	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 100, "PostgreSQL max open connections")
+	flag.IntVar(&cfg.db.maxIdleConns, "db-max_idle-conns", 50, "PostgreSQL max idle connections")
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
 
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
@@ -138,6 +140,18 @@ func main() {
 	// main() function exits.
 	defer db.Close()
 	logger.PrintInfo("databsae connection pool established ✅", nil)
+
+	//Publish some custom stats into the expvar output in JSON format
+	expvar.NewString("version").Set(version)              //version number
+	expvar.Publish("goroutines", expvar.Func(func() any { //number of goroutines
+		return runtime.NumGoroutine()
+	}))
+	expvar.Publish("database", expvar.Func(func() any { // database stats
+		return db.Stats()
+	}))
+	expvar.Publish("timestamp", expvar.Func(func() any { // time at which stats were recorded with seconds precision
+		return time.Now().Unix()
+	}))
 
 	// Declare an instance of the application struct, containing the config struct and
 	// the logger.
