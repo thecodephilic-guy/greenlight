@@ -1,6 +1,6 @@
 # greenlight
 API Server for movies
 
-Deployed end poit: https://greenlight-yscd.onrender.com
+Deployed end poit: https://api.greenlight.sohail.world
 
-(Note: Sever may take some cold start time)
+Heathcheck - https://api.greenlight.sohail.world/v1/healthcheck

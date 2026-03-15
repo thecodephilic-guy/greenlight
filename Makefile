@@ -79,3 +79,40 @@ build/api:
 	@echo 'Building cmd/api...'
 	go build -ldflags=${linker_flags} -o=./bin/api ./cmd/api
 	GOOS=linux GOARCH=amd64 go build -ldflags=${linker_flags} -o=./bin/linux_amd64/api ./cmd/api
+
+# ==================================================================================== #
+# PRODUCTION
+# ==================================================================================== #
+
+production_host = greenlight-prod
+
+## production/connect: connect to the production server
+.PHONY: production/connect
+production/connect:
+	ssh ${production_host}
+
+## production/deploy/api: deploy the api to production
+.PHONY: production/deploy/api
+production/deploy/api:
+	rsync -P ./bin/linux_amd64/api ${production_host}:~
+	ssh -t ${production_host} 'sudo systemctl restart api'
+
+## production/configure/api.service: configure the production systemd api.service file
+.PHONY: production/configure/api.service
+production/configure/api.service:
+	rsync -P ./remote/production/api.service ${production_host}:~
+	ssh -t ${production_host} '\
+		sudo mv ~/api.service /etc/systemd/system/ \
+		&& sudo systemctl daemon-reload \
+		&& sudo systemctl enable api \
+		&& sudo systemctl restart api \
+	'
+
+## production/configure/caddyfile: configure the production Caddyfile
+.PHONY: production/configure/caddyfile
+production/configure/caddyfile:
+	rsync -P ./remote/production/Caddyfile ${production_host}:~
+	ssh -t ${production_host} '\
+		sudo mv ~/Caddyfile /etc/caddy/ \
+		&& sudo systemctl reload caddy \
+	'

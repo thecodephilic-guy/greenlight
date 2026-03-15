@@ -1,0 +1,11 @@
+# Set the email address that should be used to contact you if there is a problem with 
+# your TLS certificates.
+{
+  email sohailansari483@gmail.com
+}
+
+
+api.greenlight.sohail.world {
+  respond /debug/* "Not Permitted" 403
+  reverse_proxy localhost:4000
+}
