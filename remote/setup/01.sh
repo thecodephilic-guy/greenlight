@@ -9,8 +9,7 @@ USERNAME=greenlight
 
 # Prompt for your Neon Database connection string
 read -p "Enter your full Neon DB connection string (DSN): " NEON_DSN
-read -p "Enter the SMTP Username: " SMTP_USERNAME
-read -p "Enter the SMTP Password: " SMTP_PASSWORD
+read -p "Enter the Resend Api Key (for sending mails): " RESEND_API_KEY
 
 # ==================================================================================== #
 # SCRIPT LOGIC
@@ -35,8 +34,7 @@ passwd "${USERNAME}"
 echo "Creating secure .env file for the greenlight user..."
 cat > /home/greenlight/.env << EOF
 DATABASE_URL=${NEON_DSN}
-SMTP_USERNAME=${SMTP_USERNAME}
-SMTP_PASSWORD=${SMTP_PASSWORD}
+RESEND_API_KEY=${RESEND_API_KEY}
 EOF
 
 # Lock down the permissions so ONLY the greenlight user can read it

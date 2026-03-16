@@ -6,7 +6,7 @@ import (
 	"html/template"
 	"time"
 
-	"github.com/go-mail/mail"
+	"github.com/resend/resend-go/v3"
 )
 
 // Below we declare a new variable with the type embed.FS (embedded file system) to hold
@@ -22,19 +22,17 @@ var templateFS embed.FS
 // SMTP server) and the sender information for your emails (the name and address you
 // want the email to be from, such as "Alice Smith <alice@example.com>").
 type Mailer struct {
-	dialer *mail.Dialer
+	client *resend.Client
 	sender string
 }
 
-func New(host string, port int, username, password, sender string) Mailer {
-	// Initialize a new mail.Dialer instance with the given SMTP server settings. We
-	// also configure this to use a 5-second timeout whenever we send an email.
-	dialer := mail.NewDialer(host, port, username, password)
-	dialer.Timeout = 5 * time.Second
+func New(apiKey, sender string) Mailer {
+	// Initialize a new resend mail client instance with the given apiKey server settings.
+	client := resend.NewClient(apiKey)
 
 	// Return a Mailer instance containing the dialer and sender information.
 	return Mailer{
-		dialer: dialer,
+		client: client,
 		sender: sender,
 	}
 }
@@ -73,27 +71,21 @@ func (m Mailer) Send(recipient, templateFile string, data any) error {
 		return err
 	}
 
-	// Use the mail.NewMessage() function to initialize a new mail.Message instance.
-	// Then we use the SetHeader() method to set the email recipient, sender and subject
-	// headers, the SetBody() method to set the plain-text body, and the AddAlternative()
-	// method to set the HTML body. It's important to note that AddAlternative() should
-	// always be called *after* SetBody().
-	msg := mail.NewMessage()
-	msg.SetHeader("To", recipient)
-	msg.SetHeader("From", m.sender)
-	msg.SetHeader("Subject", subject.String())
-	msg.SetBody("text/plain", plainBody.String())
-	msg.AddAlternative("text/html", htmlBody.String())
+	// Build the Resend request payload
+	params := &resend.SendEmailRequest{
+		From:    m.sender,
+		To:      []string{recipient},
+		Subject: subject.String(),
+		Text:    plainBody.String(),
+		Html:    htmlBody.String(),
+	}
 
-	// Call the DialAndSend() method on the dialer, passing in the message to send. This
-	// opens a connection to the SMTP server, sends the message, then closes the
-	// connection. If there is a timeout, it will return a "dial tcp: i/o timeout"
-	// error.
+	// Call the Send() method on the client.Emails, passing in the payload to send.
 
 	// Try sending the email up to three times before aborting and returning the final
 	// error. We sleep for 500 milliseconds between each attempt.
 	for i := 1; i <= 3; i++ {
-		err = m.dialer.DialAndSend(msg)
+		_, err = m.client.Emails.Send(params)
 		// If everything worked, return nil.
 		if nil == err {
 			return nil

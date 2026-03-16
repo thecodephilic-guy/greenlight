@@ -55,12 +55,9 @@ type config struct {
 		burst   int
 		enabled bool
 	}
-	smtp struct {
-		host     string
-		port     int
-		username string
-		password string
-		sender   string
+	mailer struct {
+		apiKey string
+		sender string
 	}
 	cors struct {
 		trustedOrigins []string
@@ -96,19 +93,16 @@ func main() {
 	// default to using our development DSN if no flag is provided.
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("DATABASE_URL"), "PostgreSQL DSN")
 
-	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 100, "PostgreSQL max open connections")
-	flag.IntVar(&cfg.db.maxIdleConns, "db-max_idle-conns", 50, "PostgreSQL max idle connections")
+	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
+	flag.IntVar(&cfg.db.maxIdleConns, "db-max_idle-conns", 12, "PostgreSQL max idle connections")
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
 
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
-	flag.StringVar(&cfg.smtp.host, "smtp-host", "smtp.mailtrap.io", "SMTP host")
-	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
-	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("SMTP_USERNAME"), "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.sohail.world>", "SMTP sender")
+	flag.StringVar(&cfg.mailer.apiKey, "resend-api-key", os.Getenv("RESEND_API_KEY"), "Resend API key")
+	flag.StringVar(&cfg.mailer.sender, "resend-sender", "Greenlight <no-reply@sohail.world>", "Resend sender")
 
 	// Use the flag.Func() function to process the -cors-trusted-origins command line
 	// flag. In this we use the strings.Fields() function to split the flag value into a
@@ -178,7 +172,7 @@ func main() {
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
-		mailer: mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
+		mailer: mailer.New(cfg.mailer.apiKey, cfg.mailer.sender),
 	}
 
 	err = app.server()
