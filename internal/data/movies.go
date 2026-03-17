@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/lib/pq"
@@ -18,6 +19,8 @@ type Movie struct {
 	Year      int32     `json:"year,omitempty"`
 	Runtime   int32     `json:"runtime,omitempty"`
 	Genres    []string  `json:"genres,omitempty"`
+	ImageURL  string    `json:"image_url,omitempty"`
+	Synopsis  string    `json:"synopsis,omitempty"`
 	Version   int32     `json:"version"` //The version number starts with 1 and be in incremented each time the information is updated
 }
 
@@ -49,6 +52,18 @@ func ValidateMovie(v *validator.Validator, movie *Movie) {
 	v.Check(len(movie.Genres) >= 1, "genres", "must contain atleat 1 genre")
 	v.Check(len(movie.Genres) <= 5, "genres", "must not contain more than 5 genres")
 	v.Check(validator.Unique(movie.Genres), "genres", "must not contain duplicate values")
+
+	v.Check(movie.ImageURL != "", "image_url", "must be provided")
+
+	// Only attempt to parse if the string isn't empty
+	if movie.ImageURL != "" {
+		_, err := url.ParseRequestURI(movie.ImageURL)
+		v.Check(err == nil, "image_url", "must be a valid URL")
+	}
+
+	v.Check(movie.Synopsis != "", "synopsis", "must be provided")
+	v.Check(len(movie.Synopsis) >= 10, "synopsis", "must be at least 10 bytes long")
+	v.Check(len(movie.Synopsis) <= 1000, "synopsis", "must not be more than 1000 bytes long")
 }
 
 // Define a MovieModel struct type which wraps a sql.DB connection pool.
@@ -62,14 +77,14 @@ type MovieModel struct {
 func (m MovieModel) Insert(movie *Movie) error {
 	//Defining the query:
 	query := `
-		INSERT INTO movies (title, year, runtime, genres)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO movies (title, year, runtime, genres, image_url, synopsis)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at, version
 	`
 	// Create an args slice containing the values for the placeholder parameters from
 	// the movie struct. Declaring this slice immediately next to our SQL query helps to
 	// make it nice and clear *what values are being used where* in the query.
-	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
+	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres), movie.ImageURL, movie.Synopsis}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -86,11 +101,11 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
 		return nil, ErrRecordNotFound
 	}
 	query := `
-		SELECT id, created_at, title, year, runtime, genres, version
+		SELECT id, created_at, title, year, runtime, genres, image_url, synopsis, version
 		FROM movies
 		WHERE id = $1`
 
-	var moive Movie
+	var movie Movie
 
 	// Use the context.WithTimeout() function to create a context.Context which carries a
 	// 3-second timeout deadline. Note that we're using the empty context.Background()
@@ -108,13 +123,15 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
 	// Use the QueryRowContext() method to execute the query, passing in the context
 	// with the deadline as the first argument.
 	err := m.DB.QueryRowContext(ctx, query, id).Scan(
-		&moive.ID,
-		&moive.CreatedAt,
-		&moive.Title,
-		&moive.Year,
-		&moive.Runtime,
-		pq.Array(&moive.Genres),
-		&moive.Version,
+		&movie.ID,
+		&movie.CreatedAt,
+		&movie.Title,
+		&movie.Year,
+		&movie.Runtime,
+		pq.Array(&movie.Genres),
+		&movie.ImageURL,
+		&movie.Synopsis,
+		&movie.Version,
 	)
 
 	// Handle any errors. If there was no matching movie found, Scan() will return
@@ -130,18 +147,18 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
 	}
 
 	//Otherwise, return a pointer to the Movie struct.
-	return &moive, nil
+	return &movie, nil
 }
 
 // Add a placeholder method for updating a specific record from the movies table.
 func (m MovieModel) Update(movie *Movie) error {
 	query := `
 		UPDATE movies
-		SET title = $1, year = $2, runtime = $3, genres = $4, version = version + 1
-		WHERE id = $5 AND version = $6
+		SET title = $1, year = $2, runtime = $3, genres = $4, image_url = $5, synopsis = $6, version = version + 1
+		WHERE id = $7 AND version = $8
 		RETURNING version
 	`
-	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres), movie.ID, movie.Version}
+	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres), movie.ImageURL, movie.Synopsis, movie.ID, movie.Version}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -203,7 +220,7 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 	//for same pages fetched by different users
 	//count(*) OVER() is called window function which counts after applying filters
 	query := fmt.Sprintf(`
-		SELECT count(*) OVER(), id, created_at, title, year, runtime, genres, version 
+		SELECT count(*) OVER(), id, created_at, title, year, runtime, genres, image_url, synopsis, version 
 		FROM movies
 		WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
 		AND (genres @> $2 OR $2 = '{}')
@@ -243,6 +260,8 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 			&movie.Year,
 			&movie.Runtime,
 			pq.Array(&movie.Genres),
+			&movie.ImageURL,
+			&movie.Synopsis,
 			&movie.Version,
 		)
 
