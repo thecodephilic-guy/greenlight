@@ -13,9 +13,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build a statically linked binary for Linux amd64 (x86_64)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w" \
+# Build a statically linked binary for Linux amd64 with git hash/tag and build time
+RUN VERSION=$(git describe --always --dirty --tags --long 2>/dev/null || echo "unknown") && \
+    BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
     -o /app/bin/api ./cmd/api
 
 # Stage 2: Final lightweight runtime container
