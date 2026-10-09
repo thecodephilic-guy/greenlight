@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  greenlight:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: greenlight-api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+    networks:
+      - greenlight-net
+
+networks:
+  greenlight-net:
+    driver: bridge

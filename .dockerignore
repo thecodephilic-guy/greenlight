@@ -1,0 +1,7 @@
+.git
+.env
+bin/
+remote/
+cmd/client/
+*.md
+.DS_Store

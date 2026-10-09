@@ -84,24 +84,31 @@ build/api:
 # PRODUCTION
 # ==================================================================================== #
 
-production_host = greenlight-prod
+production_host_ip = $(shell ssh -G greenlight-prod | awk '$$1 == "hostname" {print $$2}')
+production_user = greenlight
+ssh_key = ~/.ssh/greenlight-api-server-key.pem
+
+## production/setup: configure the intance for production
+.PHONY: production/setup
+production/setup: 
+	rsync -rP --delete -e "ssh -i ~/.ssh/<your-intace-secret-file>.pem" ./remote/setup ubuntu@<your-intace-ip>:~/
 
 ## production/connect: connect to the production server
 .PHONY: production/connect
 production/connect:
-	ssh ${production_host}
+	ssh -i ${ssh_key} ${production_user}@${production_host_ip}
 
 ## production/deploy/api: deploy the api to production
 .PHONY: production/deploy/api
 production/deploy/api:
-	rsync -P ./bin/linux_amd64/api ${production_host}:~
-	ssh -t ${production_host} 'sudo systemctl restart api'
+	rsync -P -e "ssh -i ${ssh_key}" ./bin/linux_amd64/api ${production_user}@${production_host_ip}:~
+	ssh -i ${ssh_key} -t ${production_user}@${production_host_ip} 'sudo systemctl restart api'
 
 ## production/configure/api.service: configure the production systemd api.service file
 .PHONY: production/configure/api.service
 production/configure/api.service:
-	rsync -P ./remote/production/api.service ${production_host}:~
-	ssh -t ${production_host} '\
+	rsync -P -e "ssh -i ${ssh_key}" ./remote/production/api.service ${production_user}@${production_host_ip}:~
+	ssh -i ${ssh_key} -t ${production_user}@${production_host_ip} '\
 		sudo mv ~/api.service /etc/systemd/system/ \
 		&& sudo systemctl daemon-reload \
 		&& sudo systemctl enable api \
@@ -111,8 +118,8 @@ production/configure/api.service:
 ## production/configure/caddyfile: configure the production Caddyfile
 .PHONY: production/configure/caddyfile
 production/configure/caddyfile:
-	rsync -P ./remote/production/Caddyfile ${production_host}:~
-	ssh -t ${production_host} '\
+	rsync -P -e "ssh -i ${ssh_key}" ./remote/production/Caddyfile ${production_user}@${production_host_ip}:~
+	ssh -i ${ssh_key} -t ${production_user}@${production_host_ip} '\
 		sudo mv ~/Caddyfile /etc/caddy/ \
 		&& sudo systemctl reload caddy \
 	'
